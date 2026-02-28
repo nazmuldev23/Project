@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Student Management</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: Segoe UI;
+            }
+            body {
+                background: #eef2f7;
+            }
+            .sidebar {
+                width: 230px;
+                height: 100vh;
+                background: linear-gradient(#3b82f6, #2563eb);
+                position: fixed;
+                color: white;
+                padding: 20px;
+            }
+            .logo {
+                font-size: 20px;
+                font-weight: bold;
+                margin-bottom: 30px;
+            }
+            .menu {
+                list-style: none;
+            }
+            .menu li {
+                padding: 12px;
+                border-radius: 8px;
+                margin-bottom: 10px;
+                cursor: pointer;
+            }
+            .menu li:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+            .admin {
+                position: absolute;
+                bottom: 20px;
+                left: 20px;
+                font-size: 14px;
+            }
+            .main {
+                margin-left: 250px;
+                padding: 20px;
+            }
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            .search {
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #ccc;
+            }
+            .add-btn {
+                background: #3b82f6;
+                color: white;
+                border: none;
+                padding: 10px 18px;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+            .cards {
+                display: flex;
+                gap: 20px;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+            }
+            .card {
+                flex: 1;
+                padding: 20px;
+                border-radius: 12px;
+                color: white;
+            }
+            .blue {
+                background: #3b82f6;
+            }
+            .green {
+                background: #22c55e;
+            }
+            .orange {
+                background: #f59e0b;
+            }
+            .card h2 {
+                margin-top: 10px;
+            }
+            .chart {
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+                margin-bottom: 20px;
+            }
+            .table {
+                background: white;
+                padding: 20px;
+                border-radius: 12px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th,
+            td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid #eee;
+            }
+            th {
+                background: #f1f5f9;
+            }
+            .btn {
+                padding: 6px 12px;
+                border: none;
+                border-radius: 6px;
+                color: white;
+                cursor: pointer;
+            }
+            .edit {
+                background: #3b82f6;
+            }
+            .delete {
+                background: #ef4444;
+            }
+            @media (max-width: 768px) {
+                .sidebar {
+                    width: 100%;
+                    height: auto;
+                    position: relative;
+                }
+                .main {
+                    margin-left: 0;
+                }
+                .cards {
+                    flex-direction: column;
+                }
+                .header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 10px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="sidebar">
+            <div class="logo">🎓 Students</div>
+            <ul class="menu">
+                <li>Dashboard</li>
+                <li>Students</li>
+                <li>Attendance</li>
+                <li>Results</li>
+                <li>Settings</li>
+            </ul>
+            <div class="admin">
+                Admin <br />
+                admin@email.com
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="header">
+                <h1>Dashboard</h1>
+                <div>
+                    <input class="search" placeholder="Search" />
+                    <button class="add-btn">+ Add Student</button>
+                </div>
+            </div>
+
+            <div class="cards">
+                <div class="card blue">
+                    Total Students
+                    <h2 id="total-students">0</h2>
+                </div>
+                <div class="card green">
+                    Today Attendance
+                    <h2 id="today-attendance">0%</h2>
+                </div>
+                <div class="card orange">
+                    Average Result
+                    <h2 id="average-result">A</h2>
+                </div>
+            </div>
+
+            <div class="chart">
+                <h3>Attendance Overview</h3>
+                <canvas id="attendanceChart" width="400" height="150"></canvas>
+            </div>
+
+            <div class="table">
+                <h3>Recent Students</h3>
+                <table id="student-table">
+                    <tr>
+                        <th>Name</th>
+                        <th>Roll</th>
+                        <th>Class</th>
+                        <th>Phone</th>
+                        <th>Action</th>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Chart.js CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            const table = document.getElementById("student-table");
+            const totalStudents = document.getElementById("total-students");
+            const todayAttendance = document.getElementById("today-attendance");
+            const searchInput = document.querySelector(".search");
+            const addBtn = document.querySelector(".add-btn");
+
+            // Load students from Local Storage
+            let students = JSON.parse(localStorage.getItem("students")) || [
+                {
+                    name: "",
+                    roll: "",
+                    cls: "",
+                    phone: "",
+                    present: true,
+                },
+            ];
+
+            function saveStudents() {
+                localStorage.setItem("students", JSON.stringify(students));
+            }
+
+            function updateTotalStudents() {
+                totalStudents.innerText = students.length;
+                const presentCount = students.filter((s) => s.present).length;
+                todayAttendance.innerText =
+                    Math.round((presentCount / students.length) * 100) + "%";
+                updateChart();
+            }
+
+            function createRow(student) {
+                const row = table.insertRow();
+                row.innerHTML = `
+        <td>${student.name}</td>
+        <td>${student.roll}</td>
+        <td>${student.cls}</td>
+        <td>${student.phone}</td>
+        <td>
+          <button class="btn edit">Edit</button>
+          <button class="btn delete">Delete</button>
+        </td>
+      `;
+                attachRowEvents(row, student);
+            }
+
+            function attachRowEvents(row, student) {
+                row.querySelector(".delete").addEventListener("click", () => {
+                    const index = students.indexOf(student);
+                    if (index > -1) students.splice(index, 1);
+                    row.remove();
+                    saveStudents();
+                    updateTotalStudents();
+                });
+
+                row.querySelector(".edit").addEventListener("click", () => {
+                    student.name =
+                        prompt("Edit Name:", student.name) || student.name;
+                    student.roll =
+                        prompt("Edit Roll:", student.roll) || student.roll;
+                    student.cls =
+                        prompt("Edit Class:", student.cls) || student.cls;
+                    student.phone =
+                        prompt("Edit Phone:", student.phone) || student.phone;
+                    row.cells[0].innerText = student.name;
+                    row.cells[1].innerText = student.roll;
+                    row.cells[2].innerText = student.cls;
+                    row.cells[3].innerText = student.phone;
+                    saveStudents();
+                });
+            }
+
+            function renderTable() {
+                // clear rows except header
+                table
+                    .querySelectorAll("tr:not(:first-child)")
+                    .forEach((r) => r.remove());
+                students.forEach(createRow);
+                updateTotalStudents();
+            }
+
+            // Search
+            searchInput.addEventListener("input", function () {
+                const filter = this.value.toLowerCase();
+                table
+                    .querySelectorAll("tr:not(:first-child)")
+                    .forEach((row) => {
+                        row.style.display = row.innerText
+                            .toLowerCase()
+                            .includes(filter)
+                            ? ""
+                            : "none";
+                    });
+            });
+
+            // Add Student
+            addBtn.addEventListener("click", () => {
+                const name = prompt("Student Name:");
+                const roll = prompt("Roll Number:");
+                const cls = prompt("Class:");
+                const phone = prompt("Phone:");
+                const present = confirm(
+                    "Is the student present today? OK=Yes, Cancel=No"
+                );
+                if (name && roll && cls && phone) {
+                    const student = { name, roll, cls, phone, present };
+                    students.push(student);
+                    createRow(student);
+                    saveStudents();
+                    updateTotalStudents();
+                }
+            });
+
+            // Chart.js
+            const ctx = document
+                .getElementById("attendanceChart")
+                .getContext("2d");
+            const chart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: ["Present", "Absent"],
+                    datasets: [
+                        {
+                            label: "Today Attendance",
+                            data: [],
+                            backgroundColor: ["#22c55e", "#ef4444"],
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                },
+            });
+
+            function updateChart() {
+                const presentCount = students.filter((s) => s.present).length;
+                const absentCount = students.length - presentCount;
+                chart.data.datasets[0].data = [presentCount, absentCount];
+                chart.update();
+            }
+
+            renderTable();
+        </script>
+    </body>
+</html>
+<!-- 
+Extensions name
+1.Live Server
+2. Prettier – Code Formatter
+3. Auto Rename Tag
+-->
